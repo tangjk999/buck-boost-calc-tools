@@ -1,0 +1,15 @@
+{
+  "name": "buck-boost-calc-tools",
+  "version": "1.0.0",
+  "description": "基于《双向 Buck-Boost 完整计算：从参数到选型》文档设计的在线计算工具。",
+  "main": "calculator.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}
