@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>双向 Buck-Boost 计算工具</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #1a73e8;
+            margin-bottom: 30px;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        .card h2 {
+            color: #333;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #1a73e8;
+        }
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .input-group label {
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #555;
+        }
+        .input-group input, .input-group select {
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: #1a73e8;
+        }
+        .input-group .unit {
+            font-size: 12px;
+            color: #888;
+            margin-top: 4px;
+        }
+        .btn {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 16px;
+        }
+        .btn:hover {
+            background: #1557b0;
+        }
+        .btn-secondary {
+            background: #34a853;
+        }
+        .btn-secondary:hover {
+            background: #2d8e47;
+        }
+        .results {
+            display: none;
+        }
+        .results.show {
+            display: block;
+        }
+        .result-section {
+            margin-bottom: 20px;
+        }
+        .result-section h3 {
+            color: #1a73e8;
+            margin-bottom: 12px;
+        }
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+        .result-item .label {
+            color: #666;
+        }
+        .result-item .value {
+            font-weight: 600;
+            color: #333;
+        }
+        .result-item.highlight {
+            background: #e8f0fe;
+            border: 1px solid #1a73e8;
+        }
+        .formula {
+            font-family: 'Times New Roman', serif;
+            background: #fff3cd;
+            padding: 12px;
+            border-radius: 4px;
+            margin: 8px 0;
+            font-size: 14px;
+        }
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 16px;
+        }
+        .tab {
+            padding: 8px 16px;
+            background: #e0e0e0;
+            border: none;
+            border-radius: 4px 4px 0 0;
+            cursor: pointer;
+        }
+        .tab.active {
+            background: #1a73e8;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .error {
+            color: #d93025;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        @media (max-width: 768px) {
+            .input-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>双向 Buck-Boost 完整计算工具</h1>
+
+        <div class="card">
+            <h2>输入参数</h2>
+            <div class="input-grid">
+                <div class="input-group">
+                    <label>V_H 高压侧电压 (V)</label>
+                    <input type="number" id="vH" value="400" min="1">
+                    <span class="unit">储能系统高压母线：200～400V</span>
+                </div>
+                <div class="input-group">
+                    <label>V_L 低压侧电压 (V)</label>
+                    <input type="number" id="vL" value="48" min="1">
+                    <span class="unit">电池组/车载低压电源：12V、48V</span>
+                </div>
+                <div class="input-group">
+                    <label>P_o 额定输出功率 (W)</label>
+                    <input type="number" id="pO" value="1000" min="1">
+                    <span class="unit">决定电路整体电流应力</span>
+                </div>
+                <div class="input-group">
+                    <label>f_sw 开关频率 (Hz)</label>
+                    <input type="number" id="fSw" value="100000" min="1000">
+                    <span class="unit">推荐范围：50kHz～200kHz</span>
+                </div>
+                <div class="input-group">
+                    <label>纹波电流比例系数 k</label>
+                    <input type="number" id="k" value="0.3" min="0.1" max="0.5" step="0.01">
+                    <span class="unit">推荐范围：0.2～0.4，工程推荐0.3</span>
+                </div>
+                <div class="input-group">
+                    <label>电感裕量系数</label>
+                    <input type="number" id="margin" value="1.2" min="1.0" max="1.3" step="0.05">
+                    <span class="unit">推荐范围：1.1～1.2</span>
+                </div>
+            </div>
+            <button class="btn" onclick="calculate()">计算</button>
+            <button class="btn btn-secondary" onclick="resetForm()">重置</button>
+        </div>
+
+        <div class="card results" id="results">
+            <h2>计算结果</h2>
+
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('summary')">概要</button>
+                <button class="tab" onclick="showTab('buck')">Buck模式</button>
+                <button class="tab" onclick="showTab('boost')">Boost模式</button>
+                <button class="tab" onclick="showTab('inductor')">电感选型</button>
+                <button class="tab" onclick="showTab('components')">器件选型</button>
+            </div>
+
+            <div id="summary" class="tab-content active">
+                <div class="result-section">
+                    <h3>工作模式判断</h3>
+                    <div class="result-item highlight">
+                        <span class="label">当前工作模式</span>
+                        <span class="value" id="modeResult">-</span>
+                    </div>
+                </div>
+
+                <div class="result-section">
+                    <h3>占空比计算</h3>
+                    <div class="formula" id="dutyFormula"></div>
+                    <div class="result-item">
+                        <span class="label">Buck 占空比 D_buck</span>
+                        <span class="value" id="dutyBuck">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="label">Boost 占空比 D_boost</span>
+                        <span class="value" id="dutyBoost">-</span>
+                    </div>
+                </div>
+
+                <div class="result-section">
+                    <h3>平均电感电流</h3>
+                    <div class="result-item">
+                        <span class="label">I_L_avg Buck模式</span>
+                        <span class="value" id="iLAvgBuck">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="label">I_L_avg Boost模式</span>
+                        <span class="value" id="iLAvgBoost">-</span>
+                    </div>
+                    <div class="result-item highlight">
+                        <span class="label">设计基准 I_L_avg</span>
+                        <span class="value" id="iLAvg">-</span>
+                    </div>
+                </div>
+
+                <div class="result-section">
+                    <h3>纹波电流</h3>
+                    <div class="result-item highlight">
+                        <span class="label">ΔI_L</span>
+                        <span class="value" id="deltaIL">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="buck" class="tab-content">
+                <div class="result-section">
+                    <h3>Buck 模式（降压/放电）</h3>
+                    <p style="color:#666;margin-bottom:12px;">V_H → V_L，能量从高压侧流向低压侧</p>
+                    <div class="formula">L_buck = V_L × (V_H - V_L) / (V_H × f_sw × ΔI_L)</div>
+                    <div class="result-item">
+                        <span class="label">最小电感 L_buck</span>
+                        <span class="value" id="lBuck">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="label">开关管峰值电流 I_SW_buck</span>
+                        <span class="value" id="iSWBuck">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="boost" class="tab-content">
+                <div class="result-section">
+                    <h3>Boost 模式（升压/充电）</h3>
+                    <p style="color:#666;margin-bottom:12px;">V_L → V_H，能量从低压侧流向高压侧</p>
+                    <div class="formula">L_boost = V_L × (V_H - V_L) / (V_H² × f_sw × ΔI_L)</div>
+                    <div class="result-item">
+                        <span class="label">最小电感 L_boost</span>
+                        <span class="value" id="lBoost">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="label">开关管峰值电流 I_SW_boost</span>
+                        <span class="value" id="iSWBoost">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="inductor" class="tab-content">
+                <div class="result-section">
+                    <h3>电感计算结果</h3>
+                    <div class="formula">L = max(L_buck, L_boost) × 裕量系数</div>
+                    <div class="result-item">
+                        <span class="label">L_buck</span>
+                        <span class="value" id="lBuck2">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="label">L_boost</span>
+                        <span class="value" id="lBoost2">-</span>
+                    </div>
+                    <div class="result-item highlight">
+                        <span class="label">最终电感取值 L</span>
+                        <span class="value" id="lFinal">-</span>
+                    </div>
+                </div>
+
+                <div class="result-section">
+                    <h3>电感峰值电流</h3>
+                    <div class="formula">I_L_peak = I_L_avg + ΔI_L / 2</div>
+                    <div class="result-item highlight">
+                        <span class="label">I_L_peak</span>
+                        <span class="value" id="iLPeak">-</span>
+                    </div>
+                </div>
+
+                <div class="result-section">
+                    <h3>电感选型要求</h3>
+                    <div class="result-item">
+                        <span class="label">饱和电流 I_sat ≥</span>
+                        <span class="value" id="iSat">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="label">温升电流 I_rms ≥</span>
+                        <span class="value" id="iRms">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="label">推荐磁芯</span>
+                        <span class="value">铁氧体 PC95 / PC47</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="components" class="tab-content">
+                <div class="result-section">
+                    <h3>开关管选型</h3>
+                    <div class="formula">I_SW ≥ 1.5 × max(I_SW_buck, I_SW_boost)</div>
+                    <div class="result-item">
+                        <span class="label">Buck 开关管峰值</span>
+                        <span class="value" id="iSWBuck2">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="label">Boost 开关管峰值</span>
+                        <span class="value" id="iSWBoost2">-</span>
+                    </div>
+                    <div class="result-item highlight">
+                        <span class="label">开关管额定电流</span>
+                        <span class="value" id="iSWRating">-</span>
+                    </div>
+                </div>
+
+                <div class="result-section">
+                    <h3>输出滤波电容</h3>
+                    <div class="formula">C_o = ΔI_L / (8 × f_sw × ΔV_o)</div>
+                    <div class="result-item">
+                        <span class="label">低压侧纹波要求</span>
+                        <span class="value">≤ 1% × V_L</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="label">ΔV_o (低压侧)</span>
+                        <span class="value" id="deltaVo">-</span>
+                    </div>
+                    <div class="result-item highlight">
+                        <span class="label">C_o (低压侧)</span>
+                        <span class="value" id="cO">-</span>
+                    </div>
+                    <p style="color:#666;margin-top:8px;font-size:13px;">建议采用MLCC+电解/固态电容并联</p>
+                </div>
+
+                <div class="result-section">
+                    <h3>环路稳定性</h3>
+                    <div class="result-item">
+                        <span class="label">穿越频率 f_c</span>
+                        <span class="value" id="fC">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="label">目标相位裕度</span>
+                        <span class="value">≥ 45°（推荐 60°）</span>
+                    </div>
+                </div>
+
+                <div class="result-section">
+                    <h3>效率估算</h3>
+                    <div class="result-item">
+                        <span class="label">电感铜损 P_L</span>
+                        <span class="value" id="pL">-</span>
+                    </div>
+                    <p style="color:#666;margin-top:8px;font-size:13px;">目标效率：中大功率场景 > 95%</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="calculator.js"></script>
+    <script>
+        function calculate() {
+            const vH = parseFloat(document.getElementById('vH').value);
+            const vL = parseFloat(document.getElementById('vL').value);
+            const pO = parseFloat(document.getElementById('pO').value);
+            const fSw = parseFloat(document.getElementById('fSw').value);
+            const k = parseFloat(document.getElementById('k').value);
+            const margin = parseFloat(document.getById('margin').value);
+
+            if (vH <= 0 || vL <= 0 || pO <= 0 || fSw <= 0) {
+                alert('请输入有效的参数值');
+                return;
+            }
+
+            const results = BuckBoostCalculator.calculateAll(vH, vL, pO, fSw, k, margin);
+
+            // 判断工作模式
+            const mode = vH > vL ? 'Buck模式（降压/放电）' : (vH < vL ? 'Boost模式（升压/充电）' : '均衡模式');
+            document.getElementById('modeResult').textContent = mode;
+
+            // 占空比
+            document.getElementById('dutyFormula').textContent =
+                `D_buck = V_L / V_H = ${vL} / ${vH} = ${results.dutyBuck.toFixed(4)}`;
+            document.getElementById('dutyBuck').textContent = results.dutyBuck.toFixed(4);
+            document.getElementById('dutyBoost').textContent = results.dutyBoost.toFixed(4);
+
+            // 平均电感电流
+            document.getElementById('iLAvgBuck').textContent = results.iLAvgBuck.toFixed(2) + ' A';
+            document.getElementById('iLAvgBoost').textContent = results.iLAvgBoost.toFixed(2) + ' A';
+            document.getElementById('iLAvg').textContent = results.iLAvg.toFixed(2) + ' A';
+
+            // 纹波电流
+            document.getElementById('deltaIL').textContent = results.deltaIL.toFixed(2) + ' A';
+
+            // Buck模式
+            document.getElementById('lBuck').textContent = format inductance(results.lBuck);
+            document.getElementById('iSWBuck').textContent = results.iSWBuck.toFixed(2) + ' A';
+
+            // Boost模式
+            document.getElementById('lBoost').textContent = formatInductance(results.lBoost);
+            document.getElementById('iSWBoost').textContent = results.iSWBoost.toFixed(2) + ' A';
+
+            // 电感选型
+            document.getElementById('lBuck2').textContent = formatInductance(results.lBuck);
+            document.getElementById('lBoost2').textContent = formatInductance(results.lBoost);
+            document.getElementById('lFinal').textContent = formatInductance(results.lFinal);
+            document.getElementById('iLPeak').textContent = results.iLPeak.toFixed(2) + ' A';
+            document.getElementById('iSat').textContent = results.iSat.toFixed(2) + ' A';
+            document.getElementById('iRms').textContent = results.iLAvg.toFixed(2) + ' A';
+
+            // 器件选型
+            document.getElementById('iSWBuck2').textContent = results.iSWBuck.toFixed(2) + ' A';
+            document.getElementById('iSWBoost2').textContent = results.iSWBoost.toFixed(2) + ' A';
+            document.getElementById('iSWRating').textContent = results.iSWRating.toFixed(2) + ' A';
+            document.getElementById('deltaVo').textContent = (vL * 0.01).toFixed(2) + ' V';
+            document.getElementById('cO').textContent = formatCapacitance(results.cO);
+            document.getElementById('fC').textContent = (fSw * 0.1 / 1000).toFixed(1) + ' kHz';
+            document.getElementById('pL').textContent = results.pL.toFixed(2) + ' W';
+
+            document.getElementById('results').classList.add('show');
+        }
+
+        function formatInductance(uH) {
+            if (uH >= 1000) {
+                return (uH / 1000).toFixed(2) + ' mH';
+            }
+            return uH.toFixed(2) + ' μH';
+        }
+
+        function formatCapacitance(uF) {
+            if (uF >= 1000) {
+                return (uF / 1000).toFixed(2) + ' mF';
+            }
+            return uF.toFixed(2) + ' μF';
+        }
+
+        function showTab(tabId) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            event.target.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        function resetForm() {
+            document.getElementById('vH').value = 400;
+            document.getElementById('vL').value = 48;
+            document.getElementById('pO').value = 1000;
+            document.getElementById('fSw').value = 100000;
+            document.getElementById('k').value = 0.3;
+            document.getElementById('margin').value = 1.2;
+            document.getElementById('results').classList.remove('show');
+        }
+    </script>
+</body>
+</html>
